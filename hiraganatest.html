@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hiragana Master — 5지선다</title>
+  <!-- React & ReactDOM (CDN) -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel (브라우저에서 JSX 변환) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* 살짝 보기 좋은 기본 스타일 (Tailwind 없이도 깔끔히) */
+    :root { --bg:#f7f7fb; --ink:#222; --muted:#6b7280; --panel:#fff; --border:#e5e7eb; --ok:#16a34a; --bad:#dc2626; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,"Segoe UI","Noto Sans KR",sans-serif;background:var(--bg);color:var(--ink)}
+    header{position:sticky;top:0;z-index:10;background:#ffffffd9;backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+    .wrap{max-width:960px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+    main{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.06);padding:20px}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .btn{border:1px solid var(--border);background:#fff;padding:10px 16px;border-radius:999px;cursor:pointer}
+    .btn.primary{background:#111827;color:#fff;border-color:#111827}
+    .muted{color:var(--muted);font-size:13px}
+    .opt{padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fff;cursor:pointer;text-align:left}
+    .opt:hover{background:#f4f4f5}
+    .opt.ok{background:#dcfce7;border-color:#86efac}
+    .opt.no{background:#fee2e2;border-color:#fecaca}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:10px;text-align:left}
+    thead th{background:#f9fafb}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1 style="margin:0;font-weight:800;">Hiragana Master — 5지선다</h1>
+      <div class="muted">HTML 단일 파일 · GitHub Pages OK</div>
+    </div>
+  </header>
+
+  <main>
+    <div id="root"></div>
+  </main>
+
+  <script type="text/babel">
+    // ===== 사용자가 준 React 코드 (export default 제거 버전) =====
+    const { useMemo, useState } = React;
+
+    // ---------- Utils ----------
+    const shuffle = (arr) => arr.map((v) => [Math.random(), v]).sort((a,b)=>a[0]-b[0]).map((x)=>x[1]);
+
+    // ---------- Data: Hiragana ↔ Romaji ----------
+    // 기본 오십음 + 탁음/반탁음 + 요음(ゃゅょ/ゃゃゃ) 일부
+    const BASE = [
+      ["あ","a"],["い","i"],["う","u"],["え","e"],["お","o"],
+      ["か","ka"],["き","ki"],["く","ku"],["け","ke"],["こ","ko"],
+      ["さ","sa"],["し","shi"],["す","su"],["せ","se"],["そ","so"],
+      ["た","ta"],["ち","chi"],["つ","tsu"],["て","te"],["と","to"],
+      ["な","na"],["に","ni"],["ぬ","nu"],["ね","ne"],["の","no"],
+      ["は","ha"],["ひ","hi"],["ふ","fu"],["へ","he"],["ほ","ho"],
+      ["ま","ma"],["み","mi"],["む","mu"],["め","me"],["も","mo"],
+      ["や","ya"],["ゆ","yu"],["よ","yo"],
+      ["ら","ra"],["り","ri"],["る","ru"],["れ","re"],["ろ","ro"],
+      ["わ","wa"],["を","wo"],["ん","n"],
+    ];
+
+    const DAKUON = [
+      ["が","ga"],["ぎ","gi"],["ぐ","gu"],["げ","ge"],["ご","go"],
+      ["ざ","za"],["じ","ji"],["ず","zu"],["ぜ","ze"],["ぞ","zo"],
+      ["だ","da"],["ぢ","ji"],["づ","zu"],["で","de"],["ど","do"],
+      ["ば","ba"],["び","bi"],["ぶ","bu"],["べ","be"],["ぼ","bo"],
+      ["ぱ","pa"],["ぴ","pi"],["ぷ","pu"],["ぺ","pe"],["ぽ","po"],
+    ];
+
+    const YOUON = [
+      ["きゃ","kya"],["きゅ","kyu"],["きょ","kyo"],
+      ["しゃ","sha"],["しゅ","shu"],["しょ","sho"],
+      ["ちゃ","cha"],["ちゅ","chu"],["ちょ","cho"],
+      ["にゃ","nya"],["にゅ","nyu"],["にょ","nyo"],
+      ["ひゃ","hya"],["ひゅ","hyu"],["ひょ","hyo"],
+      ["みゃ","mya"],["みゅ","myu"],["みょ","myo"],
+      ["りゃ","rya"],["りゅ","ryu"],["りょ","ryo"],
+      ["ぎゃ","gya"],["ぎゅ","gyu"],["ぎょ","gyo"],
+      ["じゃ","ja"],["じゅ","ju"],["じょ","jo"],
+      ["びゃ","bya"],["びゅ","byu"],["びょ","byo"],
+      ["ぴゃ","pya"],["ぴゅ","pyu"],["ぴょ","pyo"],
+    ];
+
+    // Map 생성
+    const makePairs = (groups) => groups.map(([jp, ro]) => ({ jp, ro }));
+
+    // ---------- Main App ----------
+    function App(){
+      // 옵션: 포함 범위 & 출제 방향
+      const [includeDakuon, setIncludeDakuon] = useState(true);
+      const [includeYouon, setIncludeYouon] = useState(true);
+      const [direction, setDirection] = useState("jp->ro"); // jp->ro (히라가나→로마자), ro->jp (로마자→히라가나)
+
+      // 스테이트
+      const [questions, setQuestions] = useState([]); // [{q,a,choices,chosen,correct}]
+      const [idx, setIdx] = useState(0);
+      const [stage, setStage] = useState("menu"); // menu | quiz | result
+
+      const deck = useMemo(()=>{
+        let d = makePairs(BASE);
+        if (includeDakuon) d = d.concat(makePairs(DAKUON));
+        if (includeYouon) d = d.concat(makePairs(YOUON));
+        return d;
+      }, [includeDakuon, includeYouon]);
+
+      const start = () => {
+        const pool = shuffle(deck);
+        const qs = pool.map((it)=>{
+          // 정답/오답 생성
+          const wrongs = shuffle(pool.filter(x=> x.ro !== it.ro && x.jp !== it.jp)).slice(0,4);
+          // 출제 방향에 따라 문제/정답/보기 구성
+          if (direction === "jp->ro"){
+            const options = shuffle([it.ro, ...wrongs.map(w=>w.ro)]);
+            return { q: it.jp, a: it.ro, choices: options };
+          } else {
+            const options = shuffle([it.jp, ...wrongs.map(w=>w.jp)]);
+            return { q: it.ro, a: it.jp, choices: options };
+          }
+        });
+        setQuestions(qs);
+        setIdx(0);
+        setStage("quiz");
+      };
+
+      const choose = (opt) => {
+        const cur = questions[idx];
+        if (cur.chosen != null) return;
+        const isCorrect = opt === cur.a;
+        const next = [...questions];
+        next[idx] = { ...cur, chosen: opt, correct: isCorrect };
+        setQuestions(next);
+        setTimeout(()=>{
+          if (idx + 1 < next.length) setIdx((i)=>i+1);
+          else setStage("result");
+        }, 650);
+      };
+
+      const score = questions.filter(q=>q.correct).length;
+
+      if (stage === "menu"){
+        return (
+          <div className="card" style={{marginTop:12}}>
+            <h2 style={{fontSize:18,fontWeight:700,marginBottom:8}}>설정 (Settings)</h2>
+            <div className="row" style={{gap:12}}>
+              <label className="row" style={{gap:8}}>
+                <input type="checkbox" checked={includeDakuon} onChange={(e)=>setIncludeDakuon(e.target.checked)} />
+                탁음·반탁음 포함 (Dakuon)
+              </label>
+              <label className="row" style={{gap:8}}>
+                <input type="checkbox" checked={includeYouon} onChange={(e)=>setIncludeYouon(e.target.checked)} />
+                요음 포함 (Youon)
+              </label>
+              <label className="row" style={{gap:8}}>
+                출제 방향 (Direction):
+                <select value={direction} onChange={(e)=>setDirection(e.target.value)}>
+                  <option value="jp->ro">히라가나 → 로마자</option>
+                  <option value="ro->jp">로마자 → 히라가나</option>
+                </select>
+              </label>
+            </div>
+            <div className="row" style={{marginTop:8}}>
+              <button className="btn primary" onClick={start}>테스트 시작 (Start)</button>
+            </div>
+            <p className="muted" style={{marginTop:6}}>모든 항목을 무작위로 5지선다로 출제. 종료 후 리포트(오답 포함) 제공.</p>
+          </div>
+        );
+      }
+
+      if (stage === "quiz"){
+        const q = questions[idx];
+        const correctSoFar = questions.filter(x=>x.correct).length;
+        return (
+          <div className="card" style={{marginTop:12}}>
+            <div className="row" style={{justifyContent:"space-between",marginBottom:8}}>
+              <div className="muted">문제 {idx+1} / {questions.length}</div>
+              <div className="muted">정답 {correctSoFar}</div>
+            </div>
+            <div style={{textAlign:"center",margin:"10px 0 14px"}}>
+              <div style={{fontSize:40,fontWeight:800}}>{q.q}</div>
+            </div>
+            <div className="row" style={{flexDirection:"column"}}>
+              {q.choices.map((opt,i)=>{
+                const selected = q.chosen != null;
+                const isCorrect = selected && opt === q.a;
+                const isWrong = selected && opt === q.chosen && opt !== q.a;
+                return (
+                  <button key={i} onClick={()=>choose(opt)}
+                    className={"opt " + (isCorrect?"ok":isWrong?"no":"")}>
+                    {opt}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
+      if (stage === "result"){
+        const downloadCSV = () => {
+          const rows = ["question,answer,chosen,correct"].concat(
+            questions.map(q=>`${q.q},${q.a},${q.chosen||""},${q.correct?"TRUE":"FALSE"}`)
+          ).join("\n");
+          const blob = new Blob([rows], {type: "text/csv;charset=utf-8"});
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "hiragana_master_report.csv";
+          a.click();
+          URL.revokeObjectURL(a.href);
+        };
+
+        return (
+          <div className="card" style={{marginTop:12}}>
+            <div style={{textAlign:"center",marginBottom:12}}>
+              <div style={{fontSize:22,fontWeight:800}}>점수 (Score): {questions.filter(q=>q.correct).length} / {questions.length}</div>
+              <div className="muted">틀린 항목을 보고 교재로 바로 복습하세요.</div>
+            </div>
+            <div className="row" style={{marginBottom:12}}>
+              <button className="btn" onClick={()=>setStage("menu")}>메뉴로</button>
+              <button className="btn" onClick={downloadCSV}>CSV 리포트 다운로드</button>
+            </div>
+
+            <div style="overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>문제 (Question)</th>
+                    <th>정답 (Answer)</th>
+                    <th>선택 (Chosen)</th>
+                    <th style="width:90px">결과</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {questions.map((q,i)=>(
+                    <tr key={i}>
+                      <td style={{fontWeight:600}}>{q.q}</td>
+                      <td>{q.a}</td>
+                      <td style={{color:q.correct?undefined:"#dc2626"}}>{q.chosen || "(미응답)"}</td>
+                      <td>{q.correct ? "✅" : "❌"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      }
+
+      return null;
+    }
+
+    // ---------- Layout (헤더/컨테이너는 HTML/CSS로 처리했으므로 별도 컴포넌트 불필요) ----------
+
+    // React 18 렌더
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
