@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Korea Cities Quiz — 5지 선다 & Report</title>
+<style>
+  :root {
+    --bg: #f7f7fb;
+    --ink: #222;
+    --muted: #6b7280;
+    --panel: #fff;
+    --border: #e5e7eb;
+    --accent: #111827;
+    --ok: #16a34a;
+    --bad: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family: system-ui, -apple-system, "Segoe UI","Noto Sans KR",sans-serif; }
+  header { position: sticky; top:0; z-index:10; backdrop-filter: blur(6px); background: #ffffffd9; border-bottom:1px solid var(--border); }
+  header .wrap { max-width: 1100px; margin:0 auto; padding: 12px 16px; display:flex; align-items:center; justify-content:space-between; }
+  h1 { font-size: 18px; margin:0; font-weight: 800; }
+  main { max-width: 1100px; margin:0 auto; padding: 20px 16px 48px; }
+  .card { background: var(--panel); border:1px solid var(--border); border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); padding: 20px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .btn { border:1px solid var(--border); background:#fff; padding:10px 16px; border-radius: 999px; cursor:pointer; }
+  .btn.primary { background: var(--accent); color:#fff; border-color: var(--accent); }
+  .btn:disabled { opacity:.6; cursor:not-allowed; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .qnum { font-size: 14px; color: var(--muted); }
+  .question { font-size: 18px; line-height: 1.7; white-space: pre-wrap; }
+  .options { display:grid; gap:10px; }
+  .opt { text-align:left; padding:12px 14px; border:1px solid var(--border); border-radius: 12px; background:#fff; cursor:pointer; }
+  .opt:hover { background: #f4f4f5; }
+  .opt.correct { background: #dcfce7; border-color:#86efac; }
+  .opt.wrong { background: #fee2e2; border-color:#fecaca; }
+  table { width:100%; border-collapse: collapse; }
+  th, td { border-bottom:1px solid var(--border); padding:10px; text-align:left; vertical-align: top; }
+  thead th { background:#f9fafb; }
+  .ok { color: var(--ok); }
+  .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Korea Cities Quiz — 5지 선다(5-choice)</h1>
+    <div class="muted">HTML 단일 파일 · 오프라인 가능</div>
+  </div>
+</header>
+
+<main>
+  <!-- MENU -->
+  <section id="view-menu" class="card" style="display:block">
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <div style="font-weight:700; font-size:18px; margin-bottom:6px;">설정 (Settings)</div>
+        <label class="row muted" style="gap:8px; user-select:none;">
+          <input type="checkbox" id="chk-hint" checked />
+          광역단위 힌트 표시 (Show region hint)
+        </label>
+        <div class="muted" style="margin-top:6px">총 항목 수: <span id="count-items">0</span> (전 범위 랜덤 출제)</div>
+      </div>
+      <div class="row">
+        <button id="btn-start" class="btn primary">테스트 시작 (Start)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- QUIZ -->
+  <section id="view-quiz" class="card" style="display:none">
+    <div class="row" style="justify-content:space-between; margin-bottom:8px;">
+      <div class="qnum">문제 <span id="q-idx">1</span> / <span id="q-total">0</span></div>
+      <div class="qnum">정답 <span id="q-score">0</span></div>
+    </div>
+    <div id="q-hint" class="hint" style="margin-bottom:6px;"></div>
+    <div id="q-desc" class="question" style="margin-bottom:14px;"></div>
+    <div id="q-options" class="options"></div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="view-result" class="card" style="display:none">
+    <div style="text-align:center; margin-bottom:12px;">
+      <div style="font-size:22px; font-weight:800;">점수 (Score): <span id="r-score">0</span> / <span id="r-total">0</span></div>
+      <div class="muted">틀린 항목을 아래 리포트에서 확인하고 책으로 복습하세요.</div>
+    </div>
+    <div class="row" style="margin-bottom:12px;">
+      <button id="btn-restart" class="btn primary">다시 풀기 (Retry)</button>
+      <button id="btn-menu" class="btn">메뉴로</button>
+      <button id="btn-download" class="btn">CSV 리포트 다운로드</button>
+    </div>
+
+    <div class="muted" style="margin: 6px 0 10px;">
+      <b>요약 (Summary)</b> — 맞춤 <span id="r-correct">0</span>개, 틀림 <span id="r-wrong">0</span>개
+    </div>
+
+    <div class="table-wrap" style="overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:140px;">광역단위 (Region)</th>
+            <th>설명 (Description)</th>
+            <th style="width:120px;">정답 (City)</th>
+            <th style="width:120px;">선택 (Chosen)</th>
+            <th style="width:80px;">결과</th>
+          </tr>
+        </thead>
+        <tbody id="r-tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+  // ---------------- Utils ----------------
+  const $ = (sel) => document.querySelector(sel);
+  const shuffle = (arr) => arr.map(v => [Math.random(), v]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);
+
+  function escapeCSV(s) {
+    const str = String(s ?? "");
+    if (str.includes(",") || str.includes("\n") || str.includes('"')) {
+      return '"' + str.replaceAll('"','""') + '"';
+    }
+    return str;
+  }
+
+  // ---------------- Data (확장 가능) ----------------
+  const RAW = [
+    { name:"서울", region:"서울특별시", desc:"우리나라의 수도로, 한강이 흐르고 경복궁 같은 옛 궁궐도 있어요. 많은 사람들이 살고 있고, 지하철이 아주 잘 되어 있어요." },
+    { name:"부산", region:"부산광역시", desc:"해운대 해변이 유명하고, 바다와 가까워서 회와 해산물이 맛있어요. 큰 항구도 있어서 배가 많이 드나들어요." },
+    { name:"인천", region:"인천광역시", desc:"인천국제공항이 있어 외국으로 여행 갈 때 많이 이용해요. 월미도 같은 놀이공원도 있어요." },
+    { name:"대구", region:"대구광역시", desc:"햇볕이 잘 들어서 사과가 맛있어요. 여름엔 아주 더운 도시로도 유명해요." },
+    { name:"대전", region:"대전광역시", desc:"과학도시로 불리며, 연구소와 박물관이 많아요. KTX가 지나가는 교통 중심지예요." },
+    { name:"광주", region:"광주광역시", desc:"떡갈비가 맛있고, 예술과 문화가 발달했어요. 민주화 운동의 중요한 장소이기도 해요." },
+    { name:"수원", region:"경기도", desc:"조선 시대의 화성이 있고, 세계문화유산으로 지정됐어요. 전통과 현대가 어우러진 도시예요." },
+    { name:"울산", region:"울산광역시", desc:"현대자동차 공장이 있고, 자동차와 조선업이 발달했어요. 고래 박물관도 있어요." },
+    { name:"용인", region:"경기도", desc:"에버랜드라는 큰 놀이공원이 있어요. 민속촌도 있어서 옛날 생활을 체험할 수 있어요." },
+    { name:"고양", region:"경기도", desc:"꽃 박람회가 열리고, 일산 호수공원처럼 자연을 즐길 수 있는 곳이 많아요." },
+    { name:"창원", region:"경상남도", desc:"배를 만드는 조선업이 발달했고, 마산과 진해가 함께 있는 도시예요." },
+    { name:"화성", region:"경기도", desc:"토마토가 많이 나고, 자동차 관련 산업도 발달했어요. 공룡알 화석지가 있어요." },
+    { name:"성남", region:"경기도", desc:"판교에 IT 회사들이 많아서 ‘한국의 실리콘밸리’라고 불려요." },
+    { name:"청주", region:"충청북도", desc:"녹두가 유명하고, 옛날 책을 만드는 직지심체요절이 나온 도시예요." },
+    { name:"부천", region:"경기도", desc:"국제판타스틱영화제가 열리고, 만화박물관도 있어요." },
+    { name:"남양주", region:"경기도", desc:"다산 정약용의 유적지가 있고, 북한강이 흐르는 자연이 아름다운 도시예요." },
+    { name:"천안", region:"충청남도", desc:"호두과자가 유명하고, 독립기념관이 있어서 역사 공부하기 좋아요." },
+    { name:"전주", region:"전라북도", desc:"비빔밥이 유명하고, 한옥마을에서 전통 문화를 체험할 수 있어요." },
+    { name:"안산", region:"경기도", desc:"여러 나라 사람들이 함께 살아서 다양한 문화를 볼 수 있어요. 바닷가도 있어요." },
+    { name:"평택", region:"경기도", desc:"평택항이 있고, 미군 부대가 있어서 외국 문화를 접할 수 있어요." },
+    { name:"안양", region:"경기도", desc:"갈비가 맛있고, 안양천이 흐르는 자연 친화적인 도시예요." },
+    { name:"김해", region:"경상남도", desc:"포도가 유명하고, 가야의 옛 문화가 남아 있는 도시예요." },
+    { name:"시흥", region:"경기도", desc:"갯골생태공원이 있어서 자연을 배우기 좋아요. 염전도 있어요." },
+    { name:"파주", region:"경기도", desc:"장단콩이 유명하고, 임진각 같은 분단 관련 장소도 있어요." },
+    { name:"포항", region:"경상북도", desc:"물회가 맛있고, 우리나라 철강산업을 이끄는 포스코 제철소가 있어요." },
+    { name:"제주", region:"제주특별자치도", desc:"감귤이 많이 나고, 화산으로 만들어진 섬이에요. 한라산이 있어요." },
+    { name:"김포", region:"경기도", desc:"농산물이 많이 나고, 김포공항도 있어요. 서울과 가까워요." },
+    { name:"의정부", region:"경기도", desc:"재래시장이 많고, 군부대가 있어서 군인들이 많이 보여요." },
+    { name:"구미", region:"경상북도", desc:"전자산업이 발달했고, 삼성과 LG의 공장이 있어요." },
+    { name:"광주(경기)", region:"경기도", desc:"온천이 유명하고, 퇴촌 같은 자연 마을도 있어요." },
+    { name:"세종", region:"세종특별자치시", desc:"정부청사가 있고, 행정 중심 도시예요. 계획적으로 만들어졌어요." },
+    { name:"원주", region:"강원도", desc:"한지가 유명하고, 의료 산업도 발달했어요. 산이 많아요." },
+    { name:"양산", region:"경상남도", desc:"통도사라는 큰 절이 있고, 부산과 가까워요." },
+    { name:"아산", region:"충청남도", desc:"온천이 유명하고, 현대자동차 공장도 있어요." },
+    { name:"진주", region:"경상남도", desc:"비빔밥이 유명하고, 진주성에서 남강 유등축제가 열려요." },
+    { name:"하남", region:"경기도", desc:"돼지고기가 맛있고, 미사리 조정경기장이 있어요." }
+  ];
+  // 100곳으로 늘리고 싶으면 RAW 배열에 같은 형식으로 항목을 추가하세요.
+
+  // ---------------- State ----------------
+  let QUESTIONS = []; // { region, desc, answer, choices, chosen?, correct? }
+  let IDX = 0;
+
+  // ---------------- DOM Init ----------------
+  $('#count-items').textContent = RAW.length;
+
+  $('#btn-start').addEventListener('click', () => startQuiz());
+  $('#btn-menu').addEventListener('click', () => showView('menu'));
+  $('#btn-restart').addEventListener('click', () => startQuiz());
+  $('#btn-download').addEventListener('click', () => downloadCSV());
+
+  function showView(name) {
+    $('#view-menu').style.display   = name === 'menu'  ? 'block' : 'none';
+    $('#view-quiz').style.display   = name === 'quiz'  ? 'block' : 'none';
+    $('#view-result').style.display = name === 'result'? 'block' : 'none';
+  }
+
+  // ---------------- Quiz Flow ----------------
+  function startQuiz() {
+    const hintOn = $('#chk-hint').checked;
+    const pool = shuffle(RAW);
+    QUESTIONS = pool.map(it => {
+      const wrongs = shuffle(pool.filter(x => x.name !== it.name)).slice(0, 4);
+      const choices = shuffle([it.name, ...wrongs.map(w => w.name)]);
+      return { region: it.region, desc: it.desc, answer: it.name, choices, chosen: null, correct: null };
+    });
+    IDX = 0;
+
+    // render first
+    $('#q-total').textContent = QUESTIONS.length;
+    $('#q-score').textContent = '0';
+    renderQuestion(hintOn);
+    showView('quiz');
+  }
+
+  function renderQuestion(hintOn) {
+    const q = QUESTIONS[IDX];
+    $('#q-idx').textContent = (IDX + 1);
+    $('#q-hint').textContent = hintOn ? `힌트: ${q.region}` : '';
+    $('#q-hint').style.display = hintOn ? 'block' : 'none';
+    $('#q-desc').textContent = q.desc;
+
+    const box = $('#q-options');
+    box.innerHTML = '';
+    q.choices.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'opt';
+      btn.textContent = opt;
+      btn.addEventListener('click', () => choose(opt));
+      box.appendChild(btn);
+    });
+  }
+
+  function choose(opt) {
+    const q = QUESTIONS[IDX];
+    if (q.chosen !== null) return;
+    q.chosen = opt;
+    q.correct = (opt === q.answer);
+
+    // paint options
+    const nodes = Array.from($('#q-options').children);
+    nodes.forEach(n => {
+      if (n.textContent === q.answer) n.classList.add('correct');
+      if (n.textContent === opt && opt !== q.answer) n.classList.add('wrong');
+      n.disabled = true;
+    });
+
+    // update score
+    const s = QUESTIONS.filter(x => x.correct).length;
+    $('#q-score').textContent = s.toString();
+
+    // next or result
+    setTimeout(() => {
+      if (IDX + 1 < QUESTIONS.length) {
+        IDX += 1;
+        renderQuestion($('#chk-hint').checked);
+      } else {
+        renderResult();
+        showView('result');
+      }
+    }, 700);
+  }
+
+  // ---------------- Result & CSV ----------------
+  function renderResult() {
+    const score = QUESTIONS.filter(q => q.correct).length;
+    $('#r-score').textContent = score.toString();
+    $('#r-total').textContent = QUESTIONS.length.toString();
+    $('#r-correct').textContent = score.toString();
+    $('#r-wrong').textContent = (QUESTIONS.length - score).toString();
+
+    const tbody = $('#r-tbody');
+    tbody.innerHTML = '';
+    QUESTIONS.forEach(q => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${q.region}</td>
+        <td>${q.desc}</td>
+        <td class="ok" style="font-weight:700">${q.answer}</td>
+        <td class="${q.correct ? '' : 'bad'}">${q.chosen ?? '(미응답)'}</td>
+        <td>${q.correct ? '✅' : '❌'}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function downloadCSV() {
+    const rows = [
+      "region,desc,answer,chosen,correct",
+      ...QUESTIONS.map(q => [
+        escapeCSV(q.region),
+        escapeCSV(q.desc),
+        escapeCSV(q.answer),
+        escapeCSV(q.chosen ?? ''),
+        q.correct ? "TRUE" : "FALSE"
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([rows], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "korea_cities_report.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+</script>
+</body>
+</html>
