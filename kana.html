@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kana Handwrite — ひらがな·カタカナ 손글씨 연습</title>
+<style>
+  :root {
+    --bg: #fffaf0;
+    --ink: #222;
+    --accent: #ff6b6b;
+    --panel: #ffffffcc;
+    --shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  body { margin:0; font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans KR","Noto Sans JP",sans-serif; background: var(--bg); color: #222; }
+  header { text-align:center; padding: 18px 12px; }
+  h1 { margin: 0 0 6px; color: var(--accent); font-size: clamp(22px, 3.2vw, 34px); }
+  .sub { color:#666; font-size: 14px; }
+
+  .wrap {
+    max-width: 1100px; margin: 0 auto; padding: 12px;
+    display: grid; grid-template-columns: 1fr 320px; gap: 14px;
+  }
+  @media (max-width: 940px) {
+    .wrap { grid-template-columns: 1fr; }
+  }
+
+  .board {
+    background: #fff; border-radius: 18px; box-shadow: var(--shadow);
+    position: relative; overflow: hidden; min-height: 60vh;
+    display: grid; place-items: center;
+  }
+  .layer { position:absolute; inset:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  .big-kana {
+    position:absolute; inset:0; display:grid; place-items:center;
+    user-select:none; pointer-events:none; color:#000000;
+    opacity: 0.12;  /* 가이드 투명도 */
+    font-family: "Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP","Segoe UI Symbol", system-ui, sans-serif;
+  }
+  .big-kana span {
+    font-size: min(68vh, 68vw); line-height:1; transform: translateY(-1%);
+  }
+
+  .grid {
+    position:absolute; inset:0; background:
+      linear-gradient(transparent 49.5%, rgba(0,0,0,0.07) 50%, transparent 50.5%),
+      linear-gradient(90deg, transparent 49.5%, rgba(0,0,0,0.07) 50%, transparent 50.5%);
+    background-size: 100% 100%, 100% 100%;
+    pointer-events: none;
+  }
+
+  .panel {
+    background: var(--panel); border-radius: 16px; box-shadow: var(--shadow);
+    padding: 14px; display: grid; gap: 10px; height: fit-content;
+    position: sticky; top: 10px;
+  }
+  .row { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+  .row > * { flex: none; }
+  label { font-size: 12px; color:#555; }
+  select, input[type="color"], input[type="range"], button, .pill {
+    border: 1px solid #ddd; background:#fff; padding:8px 10px; border-radius: 10px; font-size: 14px;
+  }
+  input[type="range"] { width: 140px; }
+  button { cursor: pointer; transition: transform .04s ease; }
+  button:active { transform: translateY(1px); }
+  .primary { background: var(--accent); border-color: var(--accent); color:#fff; }
+  .ghost { opacity:.75; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .pill { box-shadow: inset 0 0 0 1px #eee; background:#fafafa; }
+
+  .readout { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+  .display-kana { font-size: 44px; font-weight: 700; }
+  .romaji { font-size: 16px; color:#444; }
+  .toggle { display:flex; gap:6px; align-items:center; }
+  .small { font-size: 12px; color:#666; }
+
+  footer { text-align:center; padding: 16px; color:#777; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖊️ Kana Handwrite — ひらがな·カタカナ 손글씨 연습</h1>
+  <div class="sub">가이드를 따라 **따라쓰기(trace)** 하며 **획 연습(stroke practice)** 해요!</div>
+</header>
+
+<div class="wrap">
+  <!-- Drawing Board -->
+  <section class="board" id="board">
+    <!-- guide char -->
+    <div class="big-kana" id="guide"><span>あ</span></div>
+    <!-- grid cross -->
+    <div class="grid" aria-hidden="true"></div>
+    <!-- drawing canvas -->
+    <div class="layer"><canvas id="canvas"></canvas></div>
+  </section>
+
+  <!-- Control Panel -->
+  <aside class="panel" aria-label="controls">
+    <div class="readout">
+      <div class="display-kana mono" id="displayKana">あ</div>
+      <div class="romaji" id="displayRomaji">a</div>
+    </div>
+
+    <div class="row">
+      <label>모드(Mode):</label>
+      <button id="btnHira" class="primary">ひらがな</button>
+      <button id="btnKata">カタカナ</button>
+      <button id="btnRand" title="랜덤(Random)">🎲</button>
+    </div>
+
+    <div class="row">
+      <label>문자(Char):</label>
+      <select id="charSelect"></select>
+      <button id="prev">← 이전(Prev)</button>
+      <button id="next">다음(Next) →</button>
+    </div>
+
+    <!-- ▼ 추가: 반복횟수(Repeat Count) 표시/초기화 -->
+    <div class="row">
+      <div class="pill mono">
+        반복횟수(Repeat Count): <span id="repCount">0</span>번 완료
+      </div>
+      <button id="resetCount" class="ghost" title="반복횟수 초기화">초기화(Reset)</button>
+    </div>
+    <!-- ▲ 추가 끝 -->
+
+    <div class="row">
+      <label>펜(Pen):</label>
+      <input type="color" id="color" value="#222222" />
+      <label>굵기(Width):</label>
+      <input type="range" id="width" min="2" max="40" value="10" />
+      <button id="undo">↶ 되돌리기(Undo)</button>
+      <button id="clear" class="ghost">🧹 지우기(Clear)</button>
+    </div>
+
+    <div class="row">
+      <div class="toggle">
+        <input type="checkbox" id="showRomaji" checked />
+        <label for="showRomaji">로마자(Romaji)</label>
+      </div>
+      <div class="toggle">
+        <input type="checkbox" id="showGuide" checked />
+        <label for="showGuide">가이드(Guide)</label>
+      </div>
+      <div class="toggle">
+        <input type="checkbox" id="smooth" checked />
+        <label for="smooth">부드럽게(Smooth)</label>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="download">⬇ PNG 저장(Download)</button>
+      <span class="small">팁(Tip): 두 손가락으로 **스크롤 금지** — 그리기 중 화면이 움직이지 않아요.</span>
+    </div>
+  </aside>
+</div>
+
+<footer>
+  Made for kids’ practice — 히라가나(Hiragana) / 가타가나(Katakana) 손글씨 연습 프로그램.
+</footer>
+
+<script>
+/* -----------------------------
+   1) 데이터 (히라가나/가타가나 + 로마자)
+------------------------------*/
+const HIRA = [
+ ["あ","a"],["い","i"],["う","u"],["え","e"],["お","o"],
+ ["か","ka"],["き","ki"],["く","ku"],["け","ke"],["こ","ko"],
+ ["さ","sa"],["し","shi"],["す","su"],["せ","se"],["そ","so"],
+ ["た","ta"],["ち","chi"],["つ","tsu"],["て","te"],["と","to"],
+ ["な","na"],["に","ni"],["ぬ","nu"],["ね","ne"],["の","no"],
+ ["は","ha"],["ひ","hi"],["ふ","fu"],["へ","he"],["ほ","ho"],
+ ["ま","ma"],["み","mi"],["む","mu"],["め","me"],["も","mo"],
+ ["や","ya"],["ゆ","yu"],["よ","yo"],
+ ["ら","ra"],["り","ri"],["る","ru"],["れ","re"],["ろ","ro"],
+ ["わ","wa"],["を","wo"],["ん","n"]
+];
+const KATA = HIRA.map(([h,r]) => [String.fromCharCode(h.charCodeAt(0)+0x60), r]);
+
+/* -----------------------------
+   2) 상태(State)
+------------------------------*/
+let mode = "HIRA"; // "HIRA" or "KATA"
+let idx = 0;
+let strokes = [];     // 각 stroke는 [점들 배열]
+let isDrawing = false;
+let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+/* ▼ 추가: 반복횟수(Repeat Count) 상태 */
+let repeatCount = 0;
+/* ▲ 추가 끝 */
+
+/* -----------------------------
+   3) 엘리먼트(Element refs)
+------------------------------*/
+const board = document.getElementById("board");
+const guide = document.getElementById("guide").firstElementChild;
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d", { willReadFrequently: true });
+const displayKana = document.getElementById("displayKana");
+const displayRomaji = document.getElementById("displayRomaji");
+
+const btnHira = document.getElementById("btnHira");
+const btnKata = document.getElementById("btnKata");
+const btnRand = document.getElementById("btnRand");
+const sel = document.getElementById("charSelect");
+const prev = document.getElementById("prev");
+const next = document.getElementById("next");
+
+const colorInp = document.getElementById("color");
+const widthInp = document.getElementById("width");
+const undoBtn = document.getElementById("undo");
+const clearBtn = document.getElementById("clear");
+
+const showRomaji = document.getElementById("showRomaji");
+const showGuide = document.getElementById("showGuide");
+const smooth = document.getElementById("smooth");
+const downloadBtn = document.getElementById("download");
+
+/* ▼ 추가: 반복횟수 표시/초기화 요소 */
+const repCountEl = document.getElementById("repCount");
+const resetCountBtn = document.getElementById("resetCount");
+/* ▲ 추가 끝 */
+
+/* -----------------------------
+   4) 유틸(Utilities)
+------------------------------*/
+function dataList(){ return mode==="HIRA" ? HIRA : KATA; }
+function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+function resizeCanvas(){
+  const rect = board.getBoundingClientRect();
+  const w = Math.floor(rect.width);
+  const h = Math.floor(rect.height);
+  canvas.width = Math.floor(w * dpr);
+  canvas.height = Math.floor(h * dpr);
+  canvas.style.width = w+"px";
+  canvas.style.height = h+"px";
+  ctx.setTransform(1,0,0,1,0,0); // 스케일 중복 방지
+  ctx.scale(dpr, dpr);
+  redraw();
+}
+function setChar(i){
+  const list = dataList();
+  idx = (i + list.length) % list.length;
+  const [kana, roma] = list[idx];
+  guide.textContent = kana;
+  displayKana.textContent = kana;
+  displayRomaji.textContent = roma;
+  displayRomaji.style.visibility = showRomaji.checked ? "visible" : "hidden";
+  document.getElementById("guide").style.visibility = showGuide.checked ? "visible" : "hidden";
+  sel.value = String(idx);
+  clearDrawing();
+}
+function fillSelect(){
+  sel.innerHTML = "";
+  dataList().forEach((pair, i) => {
+    const opt = document.createElement("option");
+    opt.value = i; opt.textContent = `${pair[0]}  (${pair[1]})`;
+    sel.appendChild(opt);
+  });
+  sel.value = String(idx);
+}
+function clearDrawing(){
+  strokes = [];
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+function redraw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = colorInp.value;
+  ctx.lineWidth = Number(widthInp.value);
+  for(const stroke of strokes){
+    drawStroke(stroke);
+  }
+}
+function drawStroke(points){
+  if (points.length < 2) {
+    const p = points[0];
+    if (!p) return;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, ctx.lineWidth/2, 0, Math.PI*2);
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fill();
+    return;
+  }
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  if (smooth.checked && points.length >= 3){
+    for (let i=1; i<points.length-1; i++){
+      const midX = (points[i].x + points[i+1].x) / 2;
+      const midY = (points[i].y + points[i+1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+    }
+    ctx.lineTo(points.at(-1).x, points.at(-1).y);
+  } else {
+    for (let i=1; i<points.length; i++){
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+  }
+  ctx.stroke();
+}
+function pointerPos(e){
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches && e.touches[0]){
+    return {
+      x: clamp((e.touches[0].clientX - rect.left), 0, rect.width),
+      y: clamp((e.touches[0].clientY - rect.top ), 0, rect.height)
+    };
+  }
+  return {
+    x: clamp((e.clientX - rect.left), 0, rect.width),
+    y: clamp((e.clientY - rect.top ), 0, rect.height)
+  };
+}
+
+/* ▼ 추가: 반복횟수 UI 업데이트 */
+function updateRepeatUI(){
+  repCountEl.textContent = String(repeatCount);
+}
+/* ▲ 추가 끝 */
+
+/* -----------------------------
+   5) 그리기 이벤트(Draw events)
+------------------------------*/
+function startDraw(e){
+  e.preventDefault();
+  isDrawing = true;
+  const p = pointerPos(e);
+  strokes.push([p]);
+  redraw();
+}
+function moveDraw(e){
+  if (!isDrawing) return;
+  e.preventDefault();
+  const p = pointerPos(e);
+  strokes[strokes.length-1].push(p);
+  // Incremental draw (빠른 반응)
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = colorInp.value;
+  ctx.lineWidth = Number(widthInp.value);
+  const lastStroke = strokes[strokes.length-1];
+  if (lastStroke.length >= 2){
+    const a = lastStroke[lastStroke.length-2];
+    const b = lastStroke[lastStroke.length-1];
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(b.x,b.y);
+    ctx.stroke();
+  }
+}
+function endDraw(e){
+  if (!isDrawing) return;
+  e.preventDefault();
+  isDrawing = false;
+  redraw(); // 최종 스무딩 반영
+}
+
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("mousemove", moveDraw);
+window.addEventListener("mouseup", endDraw);
+canvas.addEventListener("touchstart", startDraw, {passive:false});
+canvas.addEventListener("touchmove", moveDraw, {passive:false});
+canvas.addEventListener("touchend", endDraw);
+
+/* -----------------------------
+   6) 컨트롤(Controls)
+------------------------------*/
+btnHira.addEventListener("click", ()=>{ mode="HIRA"; btnHira.classList.add("primary"); btnKata.classList.remove("primary"); fillSelect(); setChar(idx); });
+btnKata.addEventListener("click", ()=>{ mode="KATA"; btnKata.classList.add("primary"); btnHira.classList.remove("primary"); fillSelect(); setChar(idx); });
+btnRand.addEventListener("click", ()=>{ const list=dataList(); setChar(Math.floor(Math.random()*list.length)); });
+
+prev.addEventListener("click", ()=> setChar(idx-1));
+
+/* ▼ 변경: Next 동작을 핸들러로 묶어 반복횟수 증가 */
+function handleNext(){
+  // 현재 글자에서 실제로 그린 흔적이 있으면 1회 완료로 카운트
+  if (strokes.length > 0){
+    repeatCount++;
+    updateRepeatUI();
+  }
+  setChar(idx+1);
+}
+next.addEventListener("click", handleNext);
+/* ▲ 변경 끝 */
+
+sel.addEventListener("change", (e)=> setChar(Number(e.target.value)));
+
+undoBtn.addEventListener("click", ()=>{ strokes.pop(); redraw(); });
+clearBtn.addEventListener("click", ()=>{ clearDrawing(); });
+
+colorInp.addEventListener("change", redraw);
+widthInp.addEventListener("input", redraw);
+
+showRomaji.addEventListener("change", ()=>{ displayRomaji.style.visibility = showRomaji.checked ? "visible":"hidden"; });
+showGuide.addEventListener("change", ()=>{ document.getElementById("guide").style.visibility = showGuide.checked ? "visible":"hidden"; });
+
+/* ▼ 추가: 반복횟수 초기화 */
+resetCountBtn.addEventListener("click", ()=>{
+  repeatCount = 0;
+  updateRepeatUI();
+});
+/* ▲ 추가 끝 */
+
+downloadBtn.addEventListener("click", ()=>{
+  // 가이드+그림을 합쳐 저장
+  const rect = board.getBoundingClientRect();
+  const W = Math.floor(rect.width);
+  const H = Math.floor(rect.height);
+
+  const tmp = document.createElement("canvas");
+  tmp.width = W * dpr; tmp.height = H * dpr;
+  const tctx = tmp.getContext("2d");
+  tctx.scale(dpr, dpr);
+  // 흰 배경
+  tctx.fillStyle = "#fff"; tctx.fillRect(0,0,W,H);
+  // 가이드 글자
+  tctx.globalAlpha = showGuide.checked ? 0.12 : 0; 
+  tctx.fillStyle = "#000";
+  const [kana] = dataList()[idx];
+  // 폰트 크기 계산: 보드의 짧은 변 기준
+  const size = Math.min(W,H)*0.75;
+  tctx.font = `${size}px "Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",sans-serif`;
+  tctx.textAlign = "center"; tctx.textBaseline = "middle";
+  tctx.fillText(kana, W/2, H/2);
+  tctx.globalAlpha = 1;
+
+  // 사용자 필기 복사
+  tctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0,0,W,H);
+
+  const a = document.createElement("a");
+  a.download = `kana_${kana}.png`;
+  a.href = tmp.toDataURL("image/png");
+  a.click();
+});
+
+/* 키보드 단축키(Shortcuts) */
+window.addEventListener("keydown", (e)=>{
+  if (e.key === "ArrowLeft") { setChar(idx-1); }
+  if (e.key === "ArrowRight") { handleNext(); } // ▼ Next와 동일하게 카운트
+  if (e.key.toLowerCase() === "g") { showGuide.checked = !showGuide.checked; showGuide.dispatchEvent(new Event("change")); }
+  if (e.key.toLowerCase() === "u") { undoBtn.click(); }
+  if (e.key.toLowerCase() === "c") { clearBtn.click(); }
+  if (e.key.toLowerCase() === "r") { btnRand.click(); }
+});
+
+/* -----------------------------
+   7) 초기화(Init)
+------------------------------*/
+window.addEventListener("resize", ()=>{
+  // DPI 스케일링 유지 위해 다시 설정
+  dpr = Math.max(1, window.devicePixelRatio || 1);
+  resizeCanvas();
+});
+fillSelect();
+setChar(0);
+resizeCanvas();
+updateRepeatUI(); // ▼ 반복횟수 초기 UI 반영
+</script>
+</body>
+</html>
