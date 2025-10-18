@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>히라가나 단어 퀴즈 (5지선다)</title>
+<style>
+  :root{
+    --bg:#fff8ef; --ink:#222; --accent:#ff7a59; --ok:#2fbf71; --bad:#ff5252;
+    --card:#ffffffcc; --shadow:0 10px 30px rgba(0,0,0,.12);
+  }
+  html,body{margin:0;height:100%;font-family:"Pretendard","Noto Sans KR","Apple SD Gothic Neo",system-ui,-apple-system,sans-serif;color:var(--ink);background:linear-gradient(180deg,#fff8ef 0%,#fff 100%);}
+  .app{max-width:840px;margin:24px auto;padding:16px;}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .title{font-weight:800;font-size:20px;}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  button, .chip{
+    border:0;border-radius:14px;padding:10px 14px;background:#fff;box-shadow:var(--shadow);
+    font-weight:700; cursor:pointer; transition:transform .04s ease, filter .2s;
+  }
+  button:active{transform:translateY(1px)}
+  .chip{font-size:13px}
+  .primary{background:var(--accent);color:#fff}
+  .ghost{background:#fafafa}
+  .board{
+    background:var(--card);box-shadow:var(--shadow);border-radius:20px;padding:22px;margin-top:10px;
+  }
+  .meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .prog{height:10px;background:#f1f1f1;border-radius:999px;overflow:hidden}
+  .bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#ffb86b)}
+  .qtext{
+    font-size:28px;font-weight:900; text-align:center; padding:14px 8px; line-height:1.25;
+  }
+  .hint{font-size:13px; opacity:.7; text-align:center; margin-top:-6px;}
+  .options{display:grid;grid-template-columns:1fr;gap:10px;margin-top:8px}
+  @media (min-width:560px){ .options{grid-template-columns:1fr 1fr} }
+  .opt{
+    background:#fff;border-radius:16px;padding:14px 14px;font-size:18px;font-weight:700;
+    border:2px solid transparent;cursor:pointer; text-align:left; box-shadow:var(--shadow);
+  }
+  .opt:hover{filter:brightness(0.98)}
+  .opt.correct{border-color:var(--ok); background: #ecfff5;}
+  .opt.wrong{border-color:var(--bad); background:#fff1f1;}
+  .status{margin-top:10px;min-height:30px;text-align:center;font-weight:700}
+  .status.ok{color:var(--ok)} .status.bad{color:var(--bad)}
+  .footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+  .score{font-weight:900}
+  .big{font-size:24px}
+  .muted{opacity:.7}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title">히라가나 단어 퀴즈 — 5지선다</div>
+    <div class="controls">
+      <span class="chip ghost" id="modeLabel">모드: 일본어→한국어</span>
+      <button class="ghost" id="toggleMode" title="출제 방향 전환">모드 전환</button>
+      <button class="primary" id="restartBtn">다시 시작</button>
+    </div>
+  </header>
+
+  <div class="board">
+    <div class="meta">
+      <div><b id="qpos">1</b>/<span id="total">0</span> 문제</div>
+      <div class="score">점수: <span id="score">0</span></div>
+    </div>
+    <div class="prog"><div class="bar" id="bar"></div></div>
+
+    <div class="qtext" id="question">문제가 여기에 표시됩니다</div>
+    <div class="hint muted" id="reading"></div>
+
+    <div class="options" id="options"></div>
+
+    <div class="status" id="status"></div>
+    <div class="footer">
+      <div class="muted">중요 키워드 (Important Keywords): <b>랜덤(Random)</b>, <b>5지선다(5-choice)</b>, <b>전문항(Test all)</b></div>
+      <button class="ghost" id="nextBtn">다음 ▶</button>
+    </div>
+  </div>
+
+  <div class="board" id="resultBox" style="display:none">
+    <div class="qtext big">결과(Result)</div>
+    <p style="text-align:center">
+      총 <b id="resTotal">0</b>문제 중 <b id="resCorrect">0</b>문제 정답 ✅<br/>
+      정답률: <b id="resRate">0%</b>
+    </p>
+    <p style="text-align:center" id="resMsg"></p>
+    <div style="text-align:center"><button class="primary" id="replay">다시 풀기</button></div>
+  </div>
+</div>
+
+<script>
+/* -----------------------------
+   1) 데이터: 일본어(히라가나) ↔ 한국어
+   ※ 이미지의 단어를 모두 반영
+------------------------------*/
+const ITEMS = [
+  // あ행
+  {jp:"あり", ko:"개미"}, {jp:"いぬ", ko:"개"}, {jp:"うえ", ko:"위"},
+  {jp:"えき", ko:"역"},   {jp:"おに", ko:"도깨비"},
+  // か행
+  {jp:"かお", ko:"얼굴"}, {jp:"きく", ko:"국화"}, {jp:"くつ", ko:"구두"},
+  {jp:"けむり", ko:"연기"}, {jp:"こま", ko:"팽이"},
+  // さ행
+  {jp:"さる", ko:"원숭이"}, {jp:"しか", ko:"사슴"}, {jp:"すいか", ko:"수박"},
+  {jp:"せみ", ko:"매미"},   {jp:"そら", ko:"하늘"},
+  // た행
+  {jp:"たこ", ko:"문어"}, {jp:"ちかてつ", ko:"지하철"}, {jp:"つき", ko:"달"},
+  {jp:"てんき", ko:"날씨"}, {jp:"とけい", ko:"시계"},
+  // な행
+  {jp:"なし", ko:"배(과일)"}, {jp:"にわ", ko:"마당"}, {jp:"ぬりえ", ko:"색칠그림"},
+  {jp:"ねこ", ko:"고양이"},   {jp:"のり", ko:"김"},
+  // は행
+  {jp:"はさみ", ko:"가위"}, {jp:"ひかり", ko:"빛"}, {jp:"ふね", ko:"배(선박)"},
+  {jp:"へや", ko:"방"},     {jp:"ほん", ko:"책"},
+  // ま행
+  {jp:"まめ", ko:"콩"}, {jp:"みみ", ko:"귀"}, {jp:"むすこ", ko:"아들"},
+  {jp:"めん", ko:"국수"}, {jp:"もり", ko:"숲"},
+  // や행
+  {jp:"やかん", ko:"주전자"}, {jp:"ゆめ", ko:"꿈"}, {jp:"よる", ko:"밤"},
+  // ら행
+  {jp:"らいおん", ko:"사자"}, {jp:"りす", ko:"다람쥐"}, {jp:"るす", ko:"부재중"},
+  {jp:"れんらく", ko:"연락"}, {jp:"ろうそく", ko:"촛불"},
+  // わ행
+  {jp:"わに", ko:"악어"}, {jp:"すしをたべる", ko:"초밥을 먹다"}, {jp:"きん", ko:"금"}
+];
+
+// 유틸
+const shuffle = (arr)=>arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(v=>v[1]);
+const pickN = (arr, n)=>shuffle(arr).slice(0,n);
+
+// 상태
+let questions = [];
+let idx = 0;
+let score = 0;
+// mode: true => 일본어→한국어, false => 한국어→일본어
+let jp2ko = true;
+
+/* -----------------------------
+   2) 퀴즈 초기화
+------------------------------*/
+function resetGame(){
+  questions = shuffle(ITEMS.map((it,i)=>({...it, id:i})));
+  idx = 0; score = 0;
+  el("#total").textContent = questions.length;
+  el("#score").textContent = score;
+  el("#resultBox").style.display = "none";
+  el("#nextBtn").disabled = true;
+  renderQuestion();
+  updateModeLabel();
+}
+function updateModeLabel(){
+  el("#modeLabel").textContent = `모드: ${jp2ko ? "일본어→한국어" : "한국어→일본어"}`;
+}
+
+/* -----------------------------
+   3) 문제 렌더링
+------------------------------*/
+function renderQuestion(){
+  if(idx >= questions.length){ return endGame(); }
+  const q = questions[idx];
+  el("#qpos").textContent = (idx+1);
+  el("#bar").style.width = ((idx)/questions.length*100).toFixed(1) + "%";
+  el("#status").textContent = "";
+
+  // 보기 만들기 (정답 + 오답 4개)
+  const correct = jp2ko ? q.ko : q.jp;
+  const pool = jp2ko ? ITEMS.map(x=>x.ko) : ITEMS.map(x=>x.jp);
+  const wrongs = pickN(pool.filter(v=>v!==correct), 4);
+  const options = shuffle([correct, ...wrongs]);
+
+  // 질문/읽기
+  el("#question").textContent = jp2ko ? q.jp : q.ko;
+  el("#reading").textContent = jp2ko ? "일본어(Japanese) → 한국어(Korean)" : "한국어(Korean) → 일본어(Japanese)";
+
+  // 보기 버튼
+  const box = el("#options"); box.innerHTML = "";
+  options.forEach(text=>{
+    const btn = document.createElement("button");
+    btn.className = "opt";
+    btn.textContent = text;
+    btn.onclick = ()=>check(text === correct, btn, correct);
+    box.appendChild(btn);
+  });
+
+  // 다음 버튼 잠금
+  el("#nextBtn").disabled = true;
+}
+
+/* -----------------------------
+   4) 정답 체크
+------------------------------*/
+function check(isCorrect, btn, correctText){
+  // 이미 채점했으면 무시
+  if([...elAll(".opt")].some(b=>b.classList.contains("correct")||b.classList.contains("wrong"))) return;
+
+  if(isCorrect){
+    score++; el("#score").textContent = score;
+    btn.classList.add("correct");
+    el("#status").className="status ok";
+    el("#status").textContent = "정답! Great 👍";
+    confetti(18);
+  }else{
+    btn.classList.add("wrong");
+    el("#status").className="status bad";
+    el("#status").textContent = `오답! 정답은 “${correctText}”`;
+    // 정답 표시
+    const correctBtn = [...elAll(".opt")].find(b=>b.textContent===correctText);
+    if(correctBtn) correctBtn.classList.add("correct");
+  }
+  el("#nextBtn").disabled = false;
+}
+
+/* -----------------------------
+   5) 종료 & 결과
+------------------------------*/
+function endGame(){
+  el("#bar").style.width = "100%";
+  el("#resultBox").style.display="block";
+  el("#resTotal").textContent = questions.length;
+  el("#resCorrect").textContent = score;
+  const rate = Math.round(score/questions.length*100);
+  el("#resRate").textContent = rate+"%";
+  el("#resMsg").textContent =
+    rate===100 ? "완벽해요! (Perfect💯)" :
+    rate>=80 ? "아주 잘했어요! (Great🌟)" :
+    rate>=60 ? "괜찮아요. 한 번 더! (Good👍)" :
+               "조금만 더 연습! (Keep going🔥)";
+}
+
+/* -----------------------------
+   6) 도우미 & 이벤트
+------------------------------*/
+function el(q){ return document.querySelector(q); }
+function elAll(q){ return document.querySelectorAll(q); }
+
+el("#nextBtn").addEventListener("click", ()=>{ idx++; renderQuestion(); });
+el("#restartBtn").addEventListener("click", resetGame);
+el("#replay").addEventListener("click", resetGame);
+el("#toggleMode").addEventListener("click", ()=>{
+  jp2ko = !jp2ko; resetGame();
+});
+
+// 간단한 종이조각(컨페티) 효과
+function confetti(n=16){
+  const root = document.body;
+  for(let i=0;i<n;i++){
+    const s = document.createElement("span");
+    s.textContent = "✨";
+    s.style.position="fixed";
+    s.style.left = (Math.random()*100)+"vw";
+    s.style.top = "-10px";
+    s.style.fontSize = (16+Math.random()*10)+"px";
+    s.style.transition="transform 1s ease, opacity 1.2s";
+    root.appendChild(s);
+    requestAnimationFrame(()=>{
+      const dx = (Math.random()*40-20);
+      const dy = 120+Math.random()*80;
+      s.style.transform = `translate(${dx}vw, ${dy}px) rotate(${Math.random()*120-60}deg)`;
+      s.style.opacity = 0;
+    });
+    setTimeout(()=>s.remove(),1200);
+  }
+}
+
+// 시작!
+resetGame();
+</script>
+</body>
+</html>
