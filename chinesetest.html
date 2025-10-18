@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한자 퀴즈 게임</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background-color: #f0f8ff; }
+        h1, h2 { color: #333; }
+        button { padding: 10px 20px; margin: 10px; background-color: #4CAF50; color: white; border: none; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #45a049; }
+        .option { display: block; margin: 10px auto; width: 80%; padding: 15px; background-color: #fff; border: 1px solid #ccc; cursor: pointer; font-size: 24px; }
+        .option:hover { background-color: #e0e0e0; }
+        #quiz-container { display: none; }
+        #report-container { display: none; }
+        #level-select { display: none; }
+        #name-select { margin: 20px; }
+        select { padding: 10px; font-size: 16px; }
+        .correct { color: green; }
+        .incorrect { color: red; }
+        #timer { font-size: 18px; color: #666; }
+        #progress { font-size: 18px; color: #666; }
+    </style>
+</head>
+<body>
+
+    <h1>한자 퀴즈 게임</h1>
+
+    <div id="name-select">
+        <h2>이름을 선택하세요</h2>
+        <select id="user-name">
+            <option value="">선택하세요</option>
+            <option value="PHJ">PHJ</option>
+            <option value="PSJ">PSJ</option>
+        </select>
+        <button onclick="startGame()">시작하기</button>
+    </div>
+
+    <div id="level-select">
+        <h2>레벨을 선택하세요</h2>
+        <div id="levels"></div>
+    </div>
+
+    <div id="quiz-container">
+        <h2 id="level-title"></h2>
+        <p id="progress"></p>
+        <p id="timer">시간: 0초</p>
+        <h2 id="question"></h2>
+        <div id="options"></div>
+        <button id="next-btn" style="display:none;" onclick="nextQuestion()">다음 문제</button>
+    </div>
+
+    <div id="report-container">
+        <h2>퀴즈 결과</h2>
+        <p id="score"></p>
+        <h3>틀린 문제:</h3>
+        <ul id="mistakes"></ul>
+        <button onclick="restartGame()">다시 시작하기</button>
+    </div>
+
+    <script>
+        // CSV 데이터를 JavaScript 배열로 변환 (헤더 제외, 중복 포함하여 제공된 데이터 사용)
+        const hanjaData = [
+            {hanja: '一', sound: '한 일', meaning: '막대기 하나(一)를 가로로 놓은 모양에서 유래. 첫째, 하나.'},
+            {hanja: '二', sound: '두 이', meaning: '막대기 두 개를 가로로 놓은 모양. 둘, 다음.'},
+            {hanja: '三', sound: '석 삼(거듭 삼)', meaning: '막대기 셋을 가로로 놓은 모양. 셋, 거듭함.'},
+            {hanja: '四', sound: '넉 사', meaning: '네 막대를 세로로 놓아 만든 모양. 넷, 사방, 네모.'},
+            {hanja: '五', sound: '다섯 오', meaning: '가로 3·세로 2획을 합한 모양. 다섯, 다섯 가지.'},
+            {hanja: '六', sound: '여섯 육', meaning: '무궁화의 꽃잎 다섯에 하나를 더한 형태로 설명. 여섯, 육수.'},
+            {hanja: '七', sound: '일곱 칠', meaning: '북두칠성의 일곱 별을 이은 모양. 일곱.'},
+            {hanja: '八', sound: '여덟 팔', meaning: '엄지와 손가락 둘을 벌린 모양. 여덟, 갈래짐.'},
+            {hanja: '九', sound: '아홉 구', meaning: '열(十)에서 하나(一)를 뺀 수. 아홉.'},
+            {hanja: '百', sound: '일백 백', meaning: '‘○’을 아래로 눌러 쓰고 ‘一’을 더한 형상. 백, 많음.'},
+            {hanja: '十', sound: '열 십', meaning: '막대기 열 개를 새끼줄로 묶은 모양에서. 열, 완전함.'},
+            {hanja: '千', sound: '일천 천', meaning: '백(百) 위에 열(十)을 더한 수에서 확장. 천, 많음.'},
+            {hanja: '人', sound: '사람 인', meaning: '걷고 있는 사람의 옆모습. 사람, 인간.'},
+            {hanja: '上', sound: '위 상', meaning: '위로 올라가는 방향을 나타낸 모양. 위, 오르다.'},
+            {hanja: '山', sound: '뫼 산', meaning: '산의 봉우리 모양. 산, 자연.'},
+            {hanja: '中', sound: '가운데 중', meaning: '화살이 과녁의 한 가운데를 뚫는 모양. 가운데, 중심.'},
+            {hanja: '川', sound: '내 천', meaning: '물이 흐르는 내의 모양. 시내, 강.'},
+            {hanja: '下', sound: '아래 하', meaning: '아래로 내려가는 방향. 아래, 내리다.'},
+            {hanja: '日', sound: '날 일', meaning: '해의 모양. 해, 날마다.'},
+            {hanja: '水', sound: '물 수', meaning: '흐르는 물의 모양. 물, 물길.'},
+            {hanja: '才', sound: '재주 재', meaning: '초목의 새싹 모양에서 유래. 재주, 재능.'},
+            {hanja: '門', sound: '문 문', meaning: '나무로 짠 대문 모양. 문, 문짝, 집안.'},
+            {hanja: '自', sound: '스스로 자', meaning: '코(鼻)에서 유래. 몸, 자기, 스스로.'},
+            {hanja: '戶', sound: '지게문 호', meaning: '지게문 모양. 집 문, 세대(호).'},
+            {hanja: '己', sound: '몸 기', meaning: '몸을 굽힌 모양에서 유래. 자기 자신.'},
+            {hanja: '分', sound: '나눌 분', meaning: '칼로 과일을 나누는 모양. 나누다, 분별.'},
+            {hanja: '毛', sound: '털 모', meaning: '깃털/털의 모양. 털, 수염, 머리카락.'},
+            {hanja: '女', sound: '여자 녀(여)', meaning: '여자가 단정히 앉은 모양. 여자, 딸.'},
+            {hanja: '曲', sound: '굽을 곡', meaning: '구부러진 모양. 굽다, 곡선, 악곡.'},
+            {hanja: '父', sound: '아비 부', meaning: '손에 도구를 든 모양. 아버지.'},
+            {hanja: '男', sound: '사내 남', meaning: '밭(田)과 힘(力)에서 유래. 사내, 남자.'},
+            {hanja: '母', sound: '어미 모', meaning: '여자가 젖을 먹이는 모양. 어머니.'},
+            {hanja: '方', sound: '모 방', meaning: '배를 묶어 놓은 모양. 모, 방위, 방향.'},
+            {hanja: '浴', sound: '목욕할 욕', meaning: '물에서 목욕하다. 씻다, 목욕.'},
+            {hanja: '向', sound: '향할 향', meaning: '창문이 서로 마주 향함. 향하다, 방향.'},
+            {hanja: '血', sound: '피 혈', meaning: '그릇에 담은 피. 혈액.'},
+            {hanja: '沐', sound: '머리감을 목', meaning: '물가에서 머리를 감다. 머리 감다.'},
+            {hanja: '肉', sound: '살 육', meaning: '근육의 살 모양. 살, 고기.'},
+            {hanja: '品', sound: '물건 품', meaning: '물건을 쌓아 놓은 모양. 물건, 종류.'},
+            {hanja: '牛', sound: '소 우', meaning: '소의 머리 모양. 소, 우육.'},
+            {hanja: '位', sound: '자리 위', meaning: '사람이 서 있는 자리. 위치, 지위.'},
+            {hanja: '丑', sound: '소 축', meaning: '소의 코뚜레 잡은 모양. 지지 ‘축’.'},
+            {hanja: '羊', sound: '양 양', meaning: '양의 머리 모양. 양.'},
+            {hanja: '犬', sound: '개 견', meaning: '개의 옆모양. 개.'},
+            {hanja: '魚', sound: '물고기 어', meaning: '물고기 모양. 고기, 어류.'},
+            {hanja: '聞', sound: '들을 문', meaning: '귀에 문. 듣다.'},
+            {hanja: '卵', sound: '알 란', meaning: '물고기 두 개의 알 모양. 알.'},
+            {hanja: '間', sound: '사이 간', meaning: '문 틈으로 해가 비침. 사이, 간격.'},
+            {hanja: '問', sound: '물을 문', meaning: '문 앞에서 입으로 묻다. 질문하다.'},
+            {hanja: '閑', sound: '한가할 한', meaning: '문 안의 나무. 한가하다.'},
+            {hanja: '開', sound: '열 개', meaning: '문이 열리다. 열다, 개방.'},
+            {hanja: '玉', sound: '구슬 옥', meaning: '구슬 세 개를 꿴 모양. 옥.'},
+            {hanja: '閉', sound: '닫을 폐', meaning: '문에 빗장을 걸다. 닫다.'},
+            {hanja: '車', sound: '수레 거(차)', meaning: '바퀴 달린 수레 모양. 수레, 자동차.'},
+            {hanja: '王', sound: '임금 왕', meaning: '하늘·땅·사람을 잇는 큰 자. 임금.'},
+            {hanja: '舟', sound: '배 주', meaning: '작은 배 모양. 배.'},
+            {hanja: '甲', sound: '갑옷 갑', meaning: '단단한 껍질 모양. 갑옷, 첫째.'},
+            {hanja: '升', sound: '되 승(오를 승)', meaning: '되질하는 그릇. 되, 오르다.'},
+            {hanja: '乙', sound: '새 을', meaning: '새 모양에서 유래. 둘째 천간 ‘을’.'},
+            {hanja: '凶', sound: '흉할 흉', meaning: '불길하고 흉함.'},
+            {hanja: '斗', sound: '말 두', meaning: '곡식을 떠 담는 그릇. 말·되, 북두성.'},
+            {hanja: '亡', sound: '망할 망', meaning: '달아나 숨다 → 없어지다, 망하다.'},
+            {hanja: '谷', sound: '골 곡', meaning: '바위 사이로 물이 흐르는 골짜기.'},
+            {hanja: '由', sound: '말미암을 유', meaning: '가지에 달린 열매 모양. 말미암다.'},
+            {hanja: '穴', sound: '굴 혈', meaning: '굴/터널의 입구 모양. 구멍.'},
+            {hanja: '曰', sound: '가로 왈', meaning: '입으로 말하다. 가로되.'},
+            {hanja: '禾', sound: '벼 화', meaning: '이삭이 늘어진 벼 모양. 벼.'},
+            {hanja: '云', sound: '이를 운', meaning: '입과 혀의 모양에서 유래. 이르다.'},
+            {hanja: '吐', sound: '토할 토', meaning: '입에서 내뱉다. 토하다.'},
+            {hanja: '片', sound: '조각 편', meaning: '나무의 오른쪽 반쪽. 조각, 한쪽.'},
+            {hanja: '甘', sound: '달 감', meaning: '혀에서 단맛이 느껴짐. 달다.'},
+            {hanja: '左', sound: '왼 좌', meaning: '왼손. 왼쪽.'},
+            {hanja: '東', sound: '동녘 동', meaning: '묶다의 모양에서 유래. 동쪽.'},
+            {hanja: '右', sound: '오른 우', meaning: '숟가락 잡는 손. 오른쪽.'},
+            {hanja: '宇', sound: '집 우', meaning: '지붕·하늘·나라.'},
+            {hanja: '音', sound: '소리 음', meaning: '소리.'},
+            {hanja: '宙', sound: '집 주', meaning: '집, 천지 사이의 공간(우주).'},
+            {hanja: '斤', sound: '도끼 근', meaning: '도끼. 무게 단위 ‘근’.'},
+            {hanja: '言', sound: '말씀 언', meaning: '말, 언어.'},
+            {hanja: '斥', sound: '물리칠 척', meaning: '물리치다, 쫓아내다.'},
+            {hanja: '析', sound: '가를 석', meaning: '가르다, 쪼개다.'},
+            {hanja: '良', sound: '어질 양(량)', meaning: '좋다, 어질다.'},
+            {hanja: '折', sound: '꺾을 절', meaning: '꺾다, 꺾어 끊다.'},
+            {hanja: '交', sound: '사귈 교', meaning: '사귀다, 서로 바뀌다.'},
+            {hanja: '食', sound: '먹을 식', meaning: '먹다, 밥.'},
+            {hanja: '校', sound: '학교 교', meaning: '학교, 교정하다.'},
+            {hanja: '舌', sound: '혀 설', meaning: '혀, 말.'},
+            {hanja: '角', sound: '뿔 각', meaning: '뿔, 모서리, 각도.'},
+            {hanja: '爪', sound: '손톱 조', meaning: '손톱, 발톱.'},
+            {hanja: '羽', sound: '깃 우', meaning: '깃, 날개.'},
+            {hanja: '止', sound: '그칠 지', meaning: '그치다, 멈추다.'},
+            {hanja: '生', sound: '날 생', meaning: '낳다, 살다.'},
+            {hanja: '反', sound: '돌이킬 반', meaning: '거스르다, 반대하다.'},
+            {hanja: '災', sound: '재앙 재', meaning: '재앙, 화.'},
+            {hanja: '友', sound: '벗 우', meaning: '벗, 친구.'},
+            {hanja: '丸', sound: '알 환', meaning: '알약, 둥근 덩이.'},
+            {hanja: '炎', sound: '불꽃 염', meaning: '불길, 타다.'},
+            {hanja: '尖', sound: '뾰족할 첨', meaning: '날카롭다, 뾰족하다.'},
+            {hanja: '好', sound: '좋을 호', meaning: '좋다, 사랑하다.'},
+            {hanja: '本', sound: '근본 본', meaning: '근본, 책.'},
+            {hanja: '文', sound: '글월 문', meaning: '글, 글자.'},
+            {hanja: '末', sound: '끝 말', meaning: '끝, 말단.'},
+            {hanja: '元', sound: '으뜸 원', meaning: '근원, 처음, 으뜸.'},
+            {hanja: '未', sound: '아닐 미', meaning: '아직 아니다, 미완.'},
+            {hanja: '伯', sound: '맏 백', meaning: '맏(우두머리), 어른.'},
+            {hanja: '平', sound: '평평할 평', meaning: '평평하다, 고르다.'},
+            {hanja: '氏', sound: '씨 씨', meaning: '성씨.'},
+            {hanja: '小', sound: '작을 소', meaning: '작다, 적다.'},
+            {hanja: '不', sound: '아니 불(부)', meaning: '아니다, 부정.'},
+            {hanja: '主', sound: '주인 주', meaning: '임금, 주인, 주장하다.'},
+            {hanja: '用', sound: '쓸 용', meaning: '쓰다, 쓰임.'},
+            {hanja: '冊', sound: '책 책', meaning: '책, 서책.'},
+            {hanja: '材', sound: '재목 재', meaning: '재목, 재료.'},
+            {hanja: '寸', sound: '치 촌', meaning: '한 치(단위), 손가락 마디.'},
+            {hanja: '貝', sound: '조개 패', meaning: '조개, 재물.'},
+            {hanja: '在', sound: '있을 재', meaning: '있다, ~에 있다.'},
+            {hanja: '明', sound: '밝을 명', meaning: '밝다, 분명하다.'},
+            {hanja: '里', sound: '마을 리', meaning: '마을, 거리의 단위.'},
+            {hanja: '思', sound: '생각할 사', meaning: '생각하다.'},
+            {hanja: '童', sound: '아이 동', meaning: '아이, 어린이.'},
+            {hanja: '世', sound: '인간 세', meaning: '세상, 세대.'},
+            {hanja: '也', sound: '어조사 야', meaning: '또한, ~이기도 하다(어조사).'},
+            {hanja: '仁', sound: '어질 인', meaning: '어진 마음, 인(仁).'},
+            {hanja: '伏', sound: '엎드릴 복', meaning: '엎드리다, 숨다.'},
+            {hanja: '仙', sound: '신선 선', meaning: '신선, 은자.'},
+            {hanja: '化', sound: '변할 화', meaning: '변하다, 변화.'},
+            {hanja: '作', sound: '지을 작', meaning: '짓다, 만들다.'},
+            {hanja: '久', sound: '오랠 구', meaning: '오래다, 오래.'},
+            {hanja: '公', sound: '공평할 공', meaning: '공공, 공평.'},
+            {hanja: '姓', sound: '성 성', meaning: '성씨.'},
+            {hanja: '私', sound: '사사 사', meaning: '사사롭다, 개인의.'},
+            {hanja: '美', sound: '아름다울 미', meaning: '아름답다, 훌륭하다.'},
+            {hanja: '同', sound: '같을 동', meaning: '같다, 함께.'},
+            {hanja: '善', sound: '착할 선', meaning: '착하다, 선함, 좋음.'},
+            {hanja: '名', sound: '이름 명', meaning: '이름, 명칭.'},
+            {hanja: '信', sound: '믿을 신', meaning: '믿다, 신뢰.'},
+            {hanja: '和', sound: '화할 화', meaning: '화합하다, 평화롭다.'},
+            {hanja: '利', sound: '이로울 리', meaning: '이롭다, 이익.'},
+            {hanja: '器', sound: '그릇 기', meaning: '그릇, 재능.'},
+            {hanja: '定', sound: '정할 정', meaning: '정하다, 안정되다.'},
+            {hanja: '察', sound: '살필 찰', meaning: '살피다, 조사하다.'},
+            {hanja: '居', sound: '살 거', meaning: '살다, 거주하다.'},
+            {hanja: '客', sound: '손 객', meaning: '손님, 방문자.'},
+            {hanja: '室', sound: '집 실', meaning: '방, 집.'},
+            {hanja: '害', sound: '해할 해', meaning: '해롭다, 해치다.'},
+            {hanja: '家', sound: '집 가', meaning: '집, 가족.'},
+            {hanja: '實', sound: '열매 실', meaning: '열매, 실제, 참됨.'},
+            {hanja: '宰', sound: '재상 재', meaning: '재상, 주재하다.'},
+            {hanja: '官', sound: '벼슬 관', meaning: '벼슬아치, 관리.'},
+            {hanja: '宿', sound: '잘 숙', meaning: '묵다, 머물다.'},
+            {hanja: '守', sound: '지킬 수', meaning: '지키다, 보호하다.'},
+            {hanja: '富', sound: '부유할 부', meaning: '부유하다, 재산.'},
+            {hanja: '察', sound: '살필 찰', meaning: '자세히 살피다.'},
+            {hanja: '寢', sound: '잠잘 침', meaning: '잠자다, 침실.'},
+            {hanja: '寒', sound: '찰 한', meaning: '춥다, 차다.'},
+            {hanja: '寧', sound: '편안할 녕', meaning: '편안하다, 평안.'},
+            {hanja: '實', sound: '열매 실', meaning: '참됨, 진실.'},
+            {hanja: '富', sound: '부유할 부', meaning: '재산이 많다.'},
+            {hanja: '容', sound: '얼굴 용', meaning: '얼굴, 포용하다.'},
+            {hanja: '客', sound: '손 객', meaning: '손님, 나그네.'},
+            {hanja: '宿', sound: '잘 숙', meaning: '밤을 보내다, 묵다.'},
+            {hanja: '寄', sound: '부칠 기', meaning: '부치다, 의지하다.'},
+            {hanja: '害', sound: '해할 해', meaning: '해롭다, 해치다.'},
+            {hanja: '官', sound: '벼슬 관', meaning: '벼슬아치, 공무원.'},
+            {hanja: '察', sound: '살필 찰', meaning: '살피다, 관찰하다.'},
+            {hanja: '宰', sound: '재상 재', meaning: '주관하다, 다스리다.'},
+            {hanja: '富', sound: '부유할 부', meaning: '재산이 많다.'},
+            {hanja: '實', sound: '열매 실', meaning: '참됨, 실제.'},
+            {hanja: '寢', sound: '잠잘 침', meaning: '잠자다, 쉼.'},
+            {hanja: '容', sound: '얼굴 용', meaning: '용서하다, 얼굴.'},
+            {hanja: '安', sound: '편안할 안', meaning: '편안하다, 안정.'},
+            {hanja: '宮', sound: '집 궁', meaning: '궁궐, 큰집.'},
+            {hanja: '宵', sound: '밤 소', meaning: '밤, 밤중.'},
+            {hanja: '密', sound: '빽빽할 밀', meaning: '빽빽하다, 친밀.'},
+            {hanja: '守', sound: '지킬 수', meaning: '지키다, 보호하다.'},
+            {hanja: '富', sound: '부유할 부', meaning: '재산이 많다.'},
+            {hanja: '容', sound: '얼굴 용', meaning: '용모, 포용.'},
+            {hanja: '官', sound: '벼슬 관', meaning: '관리, 공직.'},
+            {hanja: '害', sound: '해할 해', meaning: '해치다, 손상.'},
+            {hanja: '宿', sound: '잘 숙', meaning: '잠자다, 묵다.'},
+            {hanja: '宰', sound: '재상 재', meaning: '주관하다, 다스리다.'},
+            {hanja: '察', sound: '살필 찰', meaning: '살피다, 조사하다.'},
+            {hanja: '安', sound: '편안할 안', meaning: '평안, 편히 지냄.'},
+            {hanja: '富', sound: '부유할 부', meaning: '재산, 부자.'},
+            {hanja: '官', sound: '벼슬 관', meaning: '벼슬, 공직자.'},
+            {hanja: '客', sound: '손 객', meaning: '손님, 방문자.'},
+            {hanja: '寄', sound: '부칠 기', meaning: '부치다, 의탁하다.'},
+            {hanja: '寢', sound: '잠잘 침', meaning: '자다, 잠자리.'},
+            {hanja: '定', sound: '정할 정', meaning: '정하다, 결정하다.'},
+            {hanja: '實', sound: '열매 실', meaning: '참됨, 실제.'},
+            {hanja: '富', sound: '부유할 부', meaning: '재산, 부자.'},
+            {hanja: '官', sound: '벼슬 관', meaning: '벼슬아치, 공직자.'},
+            {hanja: '安', sound: '편안할 안', meaning: '편안하다, 안락하다.'},
+            {hanja: '客', sound: '손 객', meaning: '손님, 방문자.'}
+        ];
+
+        // 레벨별로 한자 나누기 (60개 단위)
+        const itemsPerLevel = 60;
+        const totalLevels = Math.ceil(hanjaData.length / itemsPerLevel);
+
+        let currentUser = '';
+        let currentLevel = 0;
+        let levelData = [];
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let mistakes = [];
+        let timerInterval;
+        let timeSpent = 0;
+
+        // 레벨 버튼 생성
+        function generateLevels() {
+            const levelsDiv = document.getElementById('levels');
+            for (let i = 1; i <= totalLevels; i++) {
+                const btn = document.createElement('button');
+                btn.textContent = `Level ${i}`;
+                btn.onclick = () => startLevel(i);
+                levelsDiv.appendChild(btn);
+            }
+        }
+
+        // 게임 시작 (이름 선택 후 레벨 선택 보여주기)
+        function startGame() {
+            currentUser = document.getElementById('user-name').value;
+            if (!currentUser) {
+                alert('이름을 선택하세요!');
+                return;
+            }
+            document.getElementById('name-select').style.display = 'none';
+            document.getElementById('level-select').style.display = 'block';
+            generateLevels();
+        }
+
+        // 레벨 시작
+        function startLevel(level) {
+            currentLevel = level;
+            levelData = hanjaData.slice((level-1)*itemsPerLevel, level*itemsPerLevel);
+            questions = generateQuestions(levelData);
+            currentQuestionIndex = 0;
+            score = 0;
+            mistakes = [];
+            timeSpent = 0;
+            document.getElementById('level-select').style.display = 'none';
+            document.getElementById('quiz-container').style.display = 'block';
+            document.getElementById('level-title').textContent = `Level ${level} - ${currentUser}`;
+            startTimer();
+            showQuestion();
+        }
+
+        // 문제 생성 (30개 한자->음, 30개 음->한자, 랜덤 섞음)
+        function generateQuestions(data) {
+            let q = [];
+            data.forEach(item => {
+                // 한자 -> 음
+                q.push({
+                    type: 'hanja_to_sound',
+                    question: item.hanja,
+                    answer: item.sound,
+                    meaning: item.meaning
+                });
+                // 음 -> 한자
+                q.push({
+                    type: 'sound_to_hanja',
+                    question: item.sound,
+                    answer: item.hanja,
+                    meaning: item.meaning
+                });
+            });
+            // 레벨당 60 한자면 120 문제지만, 요구사항은 60문제라 조정 (각 한자당 하나, 랜덤 타입)
+            q = data.map(item => {
+                const type = Math.random() < 0.5 ? 'hanja_to_sound' : 'sound_to_hanja';
+                return {
+                    type,
+                    question: type === 'hanja_to_sound' ? item.hanja : item.sound,
+                    answer: type === 'hanja_to_sound' ? item.sound : item.hanja,
+                    meaning: item.meaning
+                };
+            });
+            // 랜덤 섞기
+            q.sort(() => Math.random() - 0.5);
+            return q;
+        }
+
+        // 문제 보여주기
+        function showQuestion() {
+            const q = questions[currentQuestionIndex];
+            document.getElementById('question').textContent = q.type === 'hanja_to_sound' 
+                ? `이 한자의 음은? ${q.question}` 
+                : `이 음의 한자는? ${q.question}`;
+            document.getElementById('progress').textContent = `문제 ${currentQuestionIndex + 1} / ${questions.length}`;
+            const optionsDiv = document.getElementById('options');
+            optionsDiv.innerHTML = '';
+            const options = generateOptions(q.answer, q.type);
+            options.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.classList.add('option');
+                btn.textContent = opt;
+                btn.onclick = () => checkAnswer(opt, q.answer, q);
+                optionsDiv.appendChild(btn);
+            });
+            document.getElementById('next-btn').style.display = 'none';
+        }
+
+        // 옵션 생성 (정답 + 4 랜덤 오답)
+        function generateOptions(correct, type) {
+            let allOptions = levelData.map(item => type === 'hanja_to_sound' ? item.sound : item.hanja);
+            allOptions = allOptions.filter(opt => opt !== correct); // 정답 제외
+            const shuffled = allOptions.sort(() => Math.random() - 0.5).slice(0, 4);
+            shuffled.push(correct);
+            return shuffled.sort(() => Math.random() - 0.5);
+        }
+
+        // 답 체크
+        function checkAnswer(selected, correct, q) {
+            const options = document.querySelectorAll('.option');
+            options.forEach(opt => {
+                opt.onclick = null; // 클릭 비활성
+                if (opt.textContent === correct) {
+                    opt.classList.add('correct');
+                }
+                if (opt.textContent === selected && selected !== correct) {
+                    opt.classList.add('incorrect');
+                }
+            });
+            if (selected === correct) {
+                score++;
+            } else {
+                mistakes.push({
+                    question: q.question,
+                    selected: selected,
+                    correct: correct,
+                    meaning: q.meaning,
+                    type: q.type
+                });
+            }
+            document.getElementById('next-btn').style.display = 'block';
+        }
+
+        // 다음 문제
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < questions.length) {
+                showQuestion();
+            } else {
+                stopTimer();
+                showReport();
+            }
+        }
+
+        // 타이머 시작 (업그레이드: 시간 측정)
+        function startTimer() {
+            timeSpent = 0;
+            timerInterval = setInterval(() => {
+                timeSpent++;
+                document.getElementById('timer').textContent = `시간: ${timeSpent}초`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        // 리포트 보여주기
+        function showReport() {
+            document.getElementById('quiz-container').style.display = 'none';
+            document.getElementById('report-container').style.display = 'block';
+            document.getElementById('score').textContent = `점수: ${score} / ${questions.length} (시간: ${timeSpent}초)`;
+            const mistakesList = document.getElementById('mistakes');
+            mistakesList.innerHTML = '';
+            if (mistakes.length === 0) {
+                const li = document.createElement('li');
+                li.textContent = '모든 문제를 맞혔습니다! 축하해요.';
+                mistakesList.appendChild(li);
+            } else {
+                mistakes.forEach(m => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `${m.type === 'hanja_to_sound' ? '한자: ' + m.question : '음: ' + m.question} - 당신 선택: <span class="incorrect">${m.selected}</span>, 정답: <span class="correct">${m.correct}</span> (뜻: ${m.meaning})`;
+                    mistakesList.appendChild(li);
+                });
+            }
+            // 업그레이드: localStorage에 점수 저장
+            localStorage.setItem(`${currentUser}_level${currentLevel}`, `${score}/${questions.length}`);
+        }
+
+        // 다시 시작
+        function restartGame() {
+            document.getElementById('report-container').style.display = 'none';
+            document.getElementById('name-select').style.display = 'block';
+            document.getElementById('user-name').value = '';
+        }
+    </script>
+</body>
+</html>
